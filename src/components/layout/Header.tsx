@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 
 export default function Header() {
@@ -9,14 +9,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
       <div className="flex items-center gap-4 flex-1">
-        <div className="relative max-w-md flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="input-field pl-10"
-          />
-        </div>
+        <h2 className="text-sm text-gray-500">Welcome back, <span className="font-medium text-gray-900">{user?.full_name || "Admin"}</span></h2>
       </div>
 
       <div className="flex items-center gap-4">

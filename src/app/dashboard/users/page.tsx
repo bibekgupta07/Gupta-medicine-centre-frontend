@@ -5,24 +5,45 @@ import { userService } from "@/services/user.service";
 import { User } from "@/types";
 import DataTable from "@/components/ui/DataTable";
 import Badge from "@/components/ui/Badge";
+import Modal from "@/components/ui/Modal";
+import Pagination from "@/components/ui/Pagination";
 import { formatDate } from "@/lib/utils";
-import { Search, ToggleLeft, ToggleRight } from "lucide-react";
+import { Search, ToggleLeft, ToggleRight, Edit2 } from "lucide-react";
 import toast from "react-hot-toast";
+
+const ROLES = [
+  { value: "", label: "All Roles" },
+  { value: "customer", label: "Customer" },
+  { value: "admin", label: "Admin" },
+  { value: "pharmacist", label: "Pharmacist" },
+  { value: "delivery", label: "Delivery" },
+  { value: "finance", label: "Finance" },
+];
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   useEffect(() => {
     loadUsers();
-  }, [roleFilter]);
+  }, [roleFilter, page]);
 
   const loadUsers = async () => {
+    setLoading(true);
     try {
-      const data = await userService.getAll({ search: search || undefined, role: roleFilter || undefined });
-      setUsers(Array.isArray(data) ? data : data.users || data.items || []);
+      const data = await userService.getAll({
+        page,
+        page_size: 20,
+        search: search || undefined,
+        role: roleFilter || undefined,
+      });
+      setUsers(data.users);
+      setTotalPages(Math.ceil((data.total || data.users.length) / 20));
     } catch {
       toast.error("Failed to load users");
     } finally {
@@ -45,13 +66,18 @@ export default function UsersPage() {
       key: "full_name",
       label: "User",
       render: (u: User) => (
-        <div>
-          <p className="font-medium text-gray-900">{u.full_name}</p>
-          <p className="text-xs text-gray-500">{u.email}</p>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+            <span className="text-xs font-medium text-primary-800">{u.full_name?.charAt(0) || "?"}</span>
+          </div>
+          <div>
+            <p className="font-medium text-gray-900">{u.full_name}</p>
+            <p className="text-xs text-gray-500">{u.email}</p>
+          </div>
         </div>
       ),
     },
-    { key: "phone", label: "Phone" },
+    { key: "phone", label: "Phone", render: (u: User) => u.phone || "-" },
     {
       key: "role",
       label: "Role",
@@ -67,7 +93,7 @@ export default function UsersPage() {
     {
       key: "city",
       label: "Location",
-      render: (u: User) => u.city ? `${u.city}, ${u.state || ""}` : "-",
+      render: (u: User) => u.city ? `${u.city}${u.state ? `, ${u.state}` : ""}` : "-",
     },
     {
       key: "created_at",
@@ -78,17 +104,26 @@ export default function UsersPage() {
       key: "actions",
       label: "Actions",
       render: (u: User) => (
-        <button
-          onClick={() => handleToggleStatus(u)}
-          className="p-1.5 rounded hover:bg-gray-100"
-          title={u.is_active ? "Deactivate" : "Activate"}
-        >
-          {u.is_active ? (
-            <ToggleRight size={20} className="text-green-600" />
-          ) : (
-            <ToggleLeft size={20} className="text-gray-400" />
-          )}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEditingUser(u)}
+            className="p-1.5 rounded hover:bg-gray-100"
+            title="Edit user"
+          >
+            <Edit2 size={16} className="text-blue-600" />
+          </button>
+          <button
+            onClick={() => handleToggleStatus(u)}
+            className="p-1.5 rounded hover:bg-gray-100"
+            title={u.is_active ? "Deactivate" : "Activate"}
+          >
+            {u.is_active ? (
+              <ToggleRight size={20} className="text-green-600" />
+            ) : (
+              <ToggleLeft size={20} className="text-gray-400" />
+            )}
+          </button>
+        </div>
       ),
     },
   ];
@@ -105,12 +140,91 @@ export default function UsersPage() {
             placeholder="Search users..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loadUsers()}
+            onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); loadUsers(); } }}
             className="input-field pl-10"
           />
         </div>
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="input-field w-48">
-          <option value="">All Roles</option>
+        <select
+          value={roleFilter}
+          onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+          className="input-field w-48"
+        >
+          {ROLES.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <DataTable columns={columns} data={users} loading={loading} emptyMessage="No users found" />
+
+      {totalPages > 1 && (
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+      )}
+
+      <Modal
+        isOpen={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        title="Edit User"
+      >
+        {editingUser && (
+          <UserEditForm
+            user={editingUser}
+            onSuccess={() => { setEditingUser(null); loadUsers(); }}
+          />
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+function UserEditForm({ user, onSuccess }: { user: User; onSuccess: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    full_name: user.full_name,
+    phone: user.phone || "",
+    role: user.role,
+    is_active: user.is_active,
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await userService.update(user.id, form);
+      toast.success("User updated");
+      onSuccess();
+    } catch {
+      toast.error("Failed to update user");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+        <input
+          value={form.full_name}
+          onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+          className="input-field"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+        <input
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          className="input-field"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+        <select
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value as User["role"] })}
+          className="input-field"
+        >
           <option value="customer">Customer</option>
           <option value="admin">Admin</option>
           <option value="pharmacist">Pharmacist</option>
@@ -118,8 +232,19 @@ export default function UsersPage() {
           <option value="finance">Finance</option>
         </select>
       </div>
-
-      <DataTable columns={columns} data={users} loading={loading} emptyMessage="No users found" />
-    </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="user-active"
+          checked={form.is_active}
+          onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+          className="rounded border-gray-300"
+        />
+        <label htmlFor="user-active" className="text-sm text-gray-700">Active</label>
+      </div>
+      <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-50">
+        {loading ? "Saving..." : "Update User"}
+      </button>
+    </form>
   );
 }

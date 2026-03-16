@@ -1,8 +1,8 @@
 import api from "@/lib/api";
-import { DashboardStats } from "@/types";
+import { DashboardData } from "@/types";
 
 export const dashboardService = {
-  getStats: async (): Promise<DashboardStats> => {
+  getStats: async (): Promise<DashboardData> => {
     const res = await api.get("/api/admin/dashboard");
     return res.data;
   },

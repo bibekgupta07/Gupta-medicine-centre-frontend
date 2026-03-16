@@ -19,6 +19,7 @@ import {
   LogOut,
   ChevronLeft,
   Menu,
+  FolderTree,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "@/store/auth";
@@ -26,6 +27,7 @@ import { useRouter } from "next/navigation";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/categories", label: "Categories", icon: FolderTree },
   { href: "/dashboard/medicines", label: "Medicines", icon: Pill },
   { href: "/dashboard/orders", label: "Orders", icon: ShoppingCart },
   { href: "/dashboard/users", label: "Users", icon: Users },
@@ -72,7 +74,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-col h-[calc(100vh-4rem)] justify-between p-3">
-        <ul className="space-y-1">
+        <ul className="space-y-1 overflow-y-auto">
           {menuItems.map((item) => {
             const isActive =
               pathname === item.href ||
